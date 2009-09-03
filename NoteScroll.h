@@ -15,18 +15,22 @@
 
 #include <QtGui/QWidget>
 class MyGraphicsView;
-class MyScene;
+class TextScene;
 
 class NoteScroll : public QWidget
 {
     Q_OBJECT
+    Q_PROPERTY(QStringList strings READ strings WRITE setStrings)
     public:
         NoteScroll(QWidget *parent = 0);
         ~NoteScroll();
 
+        QStringList strings() const;
+        void setStrings(const QStringList & strings);
+
     private:
         MyGraphicsView * m_view;
-        MyScene * m_scene;
+        TextScene * m_scene;
         Qt::WindowFlags m_oldWindowFlags;
 
     private Q_SLOTS:
@@ -53,14 +57,34 @@ class ButtonItem : public QObject, public QGraphicsPixmapItem
         int m_id;
 };
 
-#include <QGraphicsScene>
-class MyScene : public QGraphicsScene
+#include <QGraphicsTextItem>
+class TextItem : public QGraphicsObject
 {
     Q_OBJECT
     public:
-        MyScene(QObject * parent = 0);
+        TextItem(const QString & text, QGraphicsScene * scene, QGraphicsItem * parent = 0);
+
+        // ::QGraphicsObject
+        QRectF boundingRect() const;
+        void paint(QPainter * painter, const QStyleOptionGraphicsItem * option, QWidget * widget = 0);
+
+    private:
+        QString m_text;
+        QGraphicsScene * m_scene;
+        QFont m_font;
+};
+
+#include <QGraphicsScene>
+class TextScene : public QGraphicsScene
+{
+    Q_OBJECT
+    public:
+        TextScene(QObject * parent = 0);
 
         void resize(const QSize & size);
+
+        QStringList strings() const;
+        void setStrings(const QStringList & strings);
 
         // ::QGraphicsScene
         void drawBackground(QPainter *painter, const QRectF &rect);
@@ -72,8 +96,11 @@ class MyScene : public QGraphicsScene
     private:
         ButtonItem * m_upArrow;
         ButtonItem * m_downArrow;
+        TextItem * m_currentText;
         QSize m_size;
         QRectF m_rect;
+        QStringList m_strings;
+        int m_currentStringIdx;;
 
     private Q_SLOTS:
         void slotButtonPressed(int id);
@@ -86,13 +113,13 @@ class MyGraphicsView : public QGraphicsView
     public:
         MyGraphicsView(QWidget * parent = 0);
 
-        void setMySene(MyScene * scene);
+        void setMySene(TextScene * scene);
 
     protected:
         void resizeEvent(QResizeEvent * event);
 
     private:
-        MyScene * m_myScene;
+        TextScene * m_TextScene;
 };
 
 #endif

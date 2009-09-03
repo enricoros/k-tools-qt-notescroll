@@ -13,13 +13,13 @@
 #include "NoteScroll.h"
 #include <QGraphicsView>
 #include <QGraphicsScene>
+#include <QGraphicsSceneMouseEvent>
 #include <QGraphicsItem>
 #include <QSize>
 #include <QRect>
 #include <QPainter>
 #include <QApplication>
 #include <QVBoxLayout>
-#include <QDebug>
 
 #if QT_VERSION >= 0x040600
 #include <QPropertyAnimation>
@@ -82,19 +82,21 @@ void ButtonItem::mousePressEvent(QGraphicsSceneMouseEvent * /*event*/)
 
 
 
-MyScene::MyScene(QObject * parent)
+TextScene::TextScene(QObject * parent)
   : QGraphicsScene(parent)
+  , m_currentText(0)
+  , m_currentStringIdx(-1)
 {
     // plus and minus buttons
-    m_upArrow = new ButtonItem(QPixmap(":/button-plus.png")/*.scaled(16, 16, Qt::IgnoreAspectRatio, Qt::SmoothTransformation)*/, 1);
+    m_upArrow = new ButtonItem(QPixmap(":/button-minus.png")/*.scaled(16, 16, Qt::IgnoreAspectRatio, Qt::SmoothTransformation)*/, 1);
     connect(m_upArrow, SIGNAL(clicked(int)), this, SLOT(slotButtonPressed(int)));
     addItem(m_upArrow);
-    m_downArrow = new ButtonItem(QPixmap(":/button-minus.png")/*.scaled(16, 16, Qt::IgnoreAspectRatio, Qt::SmoothTransformation)*/, 2);
+    m_downArrow = new ButtonItem(QPixmap(":/button-plus.png")/*.scaled(16, 16, Qt::IgnoreAspectRatio, Qt::SmoothTransformation)*/, 2);
     addItem(m_downArrow);
     connect(m_downArrow, SIGNAL(clicked(int)), this, SLOT(slotButtonPressed(int)));
 }
 
-void MyScene::resize(const QSize & size)
+void TextScene::resize(const QSize & size)
 {
     m_size = size;
     m_rect = QRectF(0, 0, m_size.width(), m_size.height());
@@ -102,12 +104,26 @@ void MyScene::resize(const QSize & size)
     // change my rect
     setSceneRect(m_rect);
 
-    // relayout buttons
+    // relayout buttons and center text
     m_upArrow->setPos(m_rect.right() - m_upArrow->boundingRect().width(), m_rect.top());
     m_downArrow->setPos(m_rect.right() - m_downArrow->boundingRect().width(), m_rect.bottom() - m_downArrow->boundingRect().height());
+    if (m_currentText)
+        m_currentText->setPos(0, 0);
 }
 
-void MyScene::drawBackground(QPainter *painter, const QRectF &rect)
+QStringList TextScene::strings() const
+{
+    return m_strings;
+}
+
+void TextScene::setStrings(const QStringList & strings)
+{    
+    m_strings = strings;
+    m_currentStringIdx = -1;
+    slotButtonPressed(2);
+}
+
+void TextScene::drawBackground(QPainter *painter, const QRectF &/*rect*/)
 {
     QLinearGradient lg(0, 0, 0, 1);
     lg.setCoordinateMode(QGradient::ObjectBoundingMode);
@@ -117,14 +133,52 @@ void MyScene::drawBackground(QPainter *painter, const QRectF &rect)
     painter->fillRect(sceneRect(), lg);
 }
 
-void MyScene::mouseDoubleClickEvent(QGraphicsSceneMouseEvent * /*event*/)
+void TextScene::mouseDoubleClickEvent(QGraphicsSceneMouseEvent * /*event*/)
 {
     emit doubleClicked();
 }
 
-void MyScene::slotButtonPressed(int id)
+TextItem::TextItem(const QString & text, QGraphicsScene * scene, QGraphicsItem * parent)
+  : QGraphicsObject(parent)
+  , m_text(text)
+  , m_scene(scene)
 {
-    qWarning("%d", id);
+    m_font.setPixelSize(38);
+    scene->addItem(this);
+    show();
+}
+
+QRectF TextItem::boundingRect() const
+{
+    return m_scene->sceneRect();
+}
+
+void TextItem::paint(QPainter * painter, const QStyleOptionGraphicsItem */*option*/, QWidget * /*widget*/)
+{
+    painter->setFont(m_font);
+    painter->drawText(boundingRect(), Qt::AlignCenter | Qt::TextWordWrap, m_text);
+}
+
+
+void TextScene::slotButtonPressed(int id)
+{
+    // get string
+    QString string;
+    if (id == 2 && m_currentStringIdx < (m_strings.size() - 1))
+        string = m_strings[++m_currentStringIdx];
+    else if (id == 1 && m_currentStringIdx > 0)
+        string = m_strings[--m_currentStringIdx];
+    if (string.isEmpty())
+        return;
+
+    // animate fade in/out
+    if (m_currentText) {
+        removeItem(m_currentText);
+        delete m_currentText;
+        m_currentText = 0;
+    }
+    m_currentText = new TextItem(string, this);
+
 }
 
 
@@ -132,7 +186,7 @@ void MyScene::slotButtonPressed(int id)
 
 MyGraphicsView::MyGraphicsView(QWidget * parent)
     : QGraphicsView(parent)
-    , m_myScene(0)
+    , m_TextScene(0)
 {
     // customize widget
     setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
@@ -149,16 +203,16 @@ MyGraphicsView::MyGraphicsView(QWidget * parent)
     setPalette(pal);
 }
 
-void MyGraphicsView::setMySene(MyScene * scene)
+void MyGraphicsView::setMySene(TextScene * scene)
 {
     setScene(scene);
-    m_myScene = scene;
+    m_TextScene = scene;
 }
 
 void MyGraphicsView::resizeEvent(QResizeEvent * event)
 {
-    if (m_myScene)
-        m_myScene->resize(contentsRect().size());
+    if (m_TextScene)
+        m_TextScene->resize(contentsRect().size());
     QGraphicsView::resizeEvent(event);
 }
 
@@ -167,7 +221,7 @@ void MyGraphicsView::resizeEvent(QResizeEvent * event)
 NoteScroll::NoteScroll(QWidget *parent)
   : QWidget(parent)
   , m_view(new MyGraphicsView)
-  , m_scene(new MyScene)
+  , m_scene(new TextScene)
 {
     // customize this
 #if 1
@@ -196,6 +250,16 @@ NoteScroll::NoteScroll(QWidget *parent)
 
 NoteScroll::~NoteScroll()
 {
+}
+
+QStringList NoteScroll::strings() const
+{
+    return m_scene->strings();
+}
+
+void NoteScroll::setStrings(const QStringList & strings)
+{
+    m_scene->setStrings(strings);
 }
 
 void NoteScroll::slotToggleBorder()
