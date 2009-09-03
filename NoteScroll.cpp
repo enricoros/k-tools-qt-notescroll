@@ -19,78 +19,150 @@
 #include <QPainter>
 #include <QApplication>
 #include <QVBoxLayout>
+#include <QDebug>
 
-class MyScene : public QGraphicsScene {
-    public:
-        MyScene(QObject * parent = 0)
-          : QGraphicsScene(parent)
-        {
-            m_upArrow = new QGraphicsPixmapItem(QPixmap("/button-plus.png"), this);
-            m_downArrow = new QGraphicsPixmapItem(QPixmap("/button-minus.png"), this);
-        }
+#if QT_VERSION >= 0x040600
+#include <QPropertyAnimation>
+#endif
 
-        void resize(const QSize & size)
-        {
-            // relayout contents
-            m_size = size;
-            m_rect = QRectF(0, 0, m_size.width(), m_size.height());
-            m_upArrow->setPos(m_rect.right() - m_upArrow->boundingRect().width(), m_rect.top());
-            m_downArrow->setPos(m_rect.right() - m_downArrow->boundingRect().width(), m_rect.bottom() - m_downArrow->boundingRect().height());
+ButtonItem::ButtonItem(const QPixmap & pixmap, int id)
+  : QGraphicsPixmapItem(pixmap)
+  , m_id(id)
+{
+    setAcceptHoverEvents(true);
+    setShapeMode(BoundingRectShape);
+    show();
+    leave();
+}
 
-            // change my rect
-            setSceneRect(m_rect);
-        }
+void ButtonItem::enter()
+{
+#if QT_VERSION >= 0x040600
+    // fade in animation
+    QPropertyAnimation * ani = new QPropertyAnimation(this, "opacity");
+    ani->setEasingCurve(QEasingCurve::OutCubic);
+    ani->setDuration(400);
+    ani->setEndValue(1.0);
+    ani->start(QPropertyAnimation::DeleteWhenStopped);
+#else
+    show();
+#endif
+}
 
-        void drawBackground(QPainter * painter, const QRectF & rect)
-        {
-            painter->fillRect(rect, Qt::red);
-        }
+void ButtonItem::leave()
+{
+#if QT_VERSION >= 0x040600
+    // fade in animation
+    QPropertyAnimation * ani = new QPropertyAnimation(this, "opacity");
+    ani->setEasingCurve(QEasingCurve::OutCubic);
+    ani->setDuration(400);
+    ani->setEndValue(0.2);
+    ani->start(QPropertyAnimation::DeleteWhenStopped);
+#else
+    hide();
+#endif
+}
 
-    private:
-        QGraphicsItem * m_upArrow;
-        QGraphicsItem * m_downArrow;
-        QSize m_size;
-        QRectF m_rect;
-};
+void ButtonItem::hoverEnterEvent(QGraphicsSceneHoverEvent * event)
+{
+    enter();
+    QGraphicsItem::hoverEnterEvent(event);
+}
 
-class MyGraphicsView : public QGraphicsView {
-    public:
-        MyGraphicsView(QWidget * parent = 0)
-            : QGraphicsView(parent)
-            , m_myScene(0)
-        {
-            // customize widget
-            setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-            setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-            setInteractive(true);
-            setRenderHints(QPainter::Antialiasing | QPainter::TextAntialiasing /*| QPainter::SmoothPixmapTransform */);
-            setDragMode(QGraphicsView::RubberBandDrag);
-            setAcceptDrops(true);
-            setFrameStyle(QFrame::NoFrame);
+void ButtonItem::hoverLeaveEvent(QGraphicsSceneHoverEvent * event)
+{
+    leave();
+    QGraphicsItem::hoverLeaveEvent(event);
+}
 
-            // don't autofill the view with the Base brush
-            QPalette pal;
-            pal.setBrush(QPalette::Base, Qt::NoBrush);
-            setPalette(pal);
-        }
+void ButtonItem::mousePressEvent(QGraphicsSceneMouseEvent * /*event*/)
+{
+    emit clicked(m_id);
+}
 
-        void setMySene(MyScene * scene)
-        {
-            setScene(scene);
-            m_myScene = scene;
-        }
 
-    protected:
-        void resizeEvent(QResizeEvent * event)
-        {
-            if (m_myScene)
-                m_myScene->resize(contentsRect().size());
-            QGraphicsView::resizeEvent(event);
-        }
 
-    private:
-        MyScene * m_myScene;
-};
+MyScene::MyScene(QObject * parent)
+  : QGraphicsScene(parent)
+{
+    // plus and minus buttons
+    m_upArrow = new ButtonItem(QPixmap(":/button-plus.png")/*.scaled(16, 16, Qt::IgnoreAspectRatio, Qt::SmoothTransformation)*/, 1);
+    connect(m_upArrow, SIGNAL(clicked(int)), this, SLOT(slotButtonPressed(int)));
+    addItem(m_upArrow);
+    m_downArrow = new ButtonItem(QPixmap(":/button-minus.png")/*.scaled(16, 16, Qt::IgnoreAspectRatio, Qt::SmoothTransformation)*/, 2);
+    addItem(m_downArrow);
+    connect(m_downArrow, SIGNAL(clicked(int)), this, SLOT(slotButtonPressed(int)));
+}
+
+void MyScene::resize(const QSize & size)
+{
+    m_size = size;
+    m_rect = QRectF(0, 0, m_size.width(), m_size.height());
+
+    // change my rect
+    setSceneRect(m_rect);
+
+    // relayout buttons
+    m_upArrow->setPos(m_rect.right() - m_upArrow->boundingRect().width(), m_rect.top());
+    m_downArrow->setPos(m_rect.right() - m_downArrow->boundingRect().width(), m_rect.bottom() - m_downArrow->boundingRect().height());
+}
+
+void MyScene::drawBackground(QPainter *painter, const QRectF &rect)
+{
+    QLinearGradient lg(0, 0, 0, 1);
+    lg.setCoordinateMode(QGradient::ObjectBoundingMode);
+    lg.setColorAt(0.0, Qt::transparent);
+    lg.setColorAt(0.5, QColor(255, 220, 0, 64));
+    lg.setColorAt(1.0, Qt::transparent);
+    painter->fillRect(sceneRect(), lg);
+}
+
+void MyScene::mouseDoubleClickEvent(QGraphicsSceneMouseEvent * /*event*/)
+{
+    emit doubleClicked();
+}
+
+void MyScene::slotButtonPressed(int id)
+{
+    qWarning("%d", id);
+}
+
+
+
+
+MyGraphicsView::MyGraphicsView(QWidget * parent)
+    : QGraphicsView(parent)
+    , m_myScene(0)
+{
+    // customize widget
+    setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    setInteractive(true);
+    setRenderHints(QPainter::Antialiasing | QPainter::TextAntialiasing /*| QPainter::SmoothPixmapTransform */);
+    setDragMode(QGraphicsView::RubberBandDrag);
+    setAcceptDrops(true);
+    setFrameStyle(QFrame::NoFrame);
+
+    // don't autofill the view with the Base brush
+    QPalette pal;
+    pal.setBrush(QPalette::Base, Qt::NoBrush);
+    setPalette(pal);
+}
+
+void MyGraphicsView::setMySene(MyScene * scene)
+{
+    setScene(scene);
+    m_myScene = scene;
+}
+
+void MyGraphicsView::resizeEvent(QResizeEvent * event)
+{
+    if (m_myScene)
+        m_myScene->resize(contentsRect().size());
+    QGraphicsView::resizeEvent(event);
+}
+
+
 
 NoteScroll::NoteScroll(QWidget *parent)
   : QWidget(parent)
@@ -98,8 +170,16 @@ NoteScroll::NoteScroll(QWidget *parent)
   , m_scene(new MyScene)
 {
     // customize this
+#if 1
     setAttribute(Qt::WA_NoSystemBackground, true);
     setAttribute(Qt::WA_TranslucentBackground, true);
+#else
+    QPalette pal;
+    pal.setBrush(QPalette::Window, Qt::yellow);
+    setPalette(pal);
+#endif
+    m_oldWindowFlags = windowFlags() | Qt::WindowStaysOnTopHint;
+    slotToggleBorder();
 
     // layout things
     QVBoxLayout * lay = new QVBoxLayout(this);
@@ -107,17 +187,25 @@ NoteScroll::NoteScroll(QWidget *parent)
     lay->setMargin(0);
     lay->addWidget(m_view);
 
+    // customize scene
+    connect(m_scene, SIGNAL(doubleClicked()), this, SLOT(slotToggleBorder()));
+
     // customize graphicsview
-    m_view->setScene(m_scene);
+    m_view->setMySene(m_scene);
 }
 
 NoteScroll::~NoteScroll()
 {
-
 }
 
-void NoteScroll::mouseDoubleClickEvent(QMouseEvent * /*event*/)
+void NoteScroll::slotToggleBorder()
 {
-    setWindowFlags(windowFlags() | Qt::FramelessWindowHint);
-    qWarning("DK");
+    static bool frameLess = false;
+    QSize prevSize = size();
+    if ((frameLess = !frameLess))
+        setWindowFlags(Qt::CustomizeWindowHint | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
+    else
+        setWindowFlags(m_oldWindowFlags);
+    show();
+    resize(prevSize);
 }

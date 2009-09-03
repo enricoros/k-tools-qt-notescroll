@@ -17,6 +17,7 @@ int main(int argc, char *argv[])
 {
     QApplication a(argc, argv);
     NoteScroll w;
+    w.resize(640, 120);
     w.show();
     return a.exec();
 }
