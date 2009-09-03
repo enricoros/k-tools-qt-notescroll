@@ -44,8 +44,6 @@ class ButtonItem : public QObject, public QGraphicsPixmapItem
     Q_PROPERTY(qreal opacity READ opacity WRITE setOpacity)
     public:
         ButtonItem(const QPixmap & pixmap, int id);
-        void enter();
-        void leave();
         void hoverEnterEvent(QGraphicsSceneHoverEvent * event);
         void hoverLeaveEvent(QGraphicsSceneHoverEvent * event);
         void mousePressEvent(QGraphicsSceneMouseEvent * event);
@@ -64,6 +62,14 @@ class TextItem : public QGraphicsObject
     public:
         TextItem(const QString & text, QGraphicsScene * scene, QGraphicsItem * parent = 0);
 
+        void setFont(const QFont & font);
+        QFont font() const;
+        void setColor(const QColor & color);
+        QColor color() const;
+
+        void enter(bool upwards);
+        void dispose(bool upwards);
+
         // ::QGraphicsObject
         QRectF boundingRect() const;
         void paint(QPainter * painter, const QStyleOptionGraphicsItem * option, QWidget * widget = 0);
@@ -72,6 +78,7 @@ class TextItem : public QGraphicsObject
         QString m_text;
         QGraphicsScene * m_scene;
         QFont m_font;
+        QColor m_color;
 };
 
 #include <QGraphicsScene>
@@ -88,17 +95,15 @@ class TextScene : public QGraphicsScene
 
         // ::QGraphicsScene
         void drawBackground(QPainter *painter, const QRectF &rect);
-        void mouseDoubleClickEvent(QGraphicsSceneMouseEvent * event);
-
-    Q_SIGNALS:
-        void doubleClicked();
+        void mousePressEvent(QGraphicsSceneMouseEvent * event);
 
     private:
         ButtonItem * m_upArrow;
         ButtonItem * m_downArrow;
-        TextItem * m_currentText;
+        TextItem * m_textItem;
         QSize m_size;
         QRectF m_rect;
+        QColor m_textColor;
         QStringList m_strings;
         int m_currentStringIdx;;
 

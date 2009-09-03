@@ -19,10 +19,14 @@
 
 int main(int argc, char *argv[])
 {
+#if QT_VERSION >= 0x040500
+    QApplication::setGraphicsSystem("raster");
+#endif
+
     QApplication a(argc, argv);
     NoteScroll w;
     w.setWindowTitle(QObject::tr("NoteScroL"));
-    w.resize(640, 120);
+    w.resize(800, 120);
     w.show();
 
     // read input file, 1 string per line
