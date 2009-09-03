@@ -1,7 +1,7 @@
 /***************************************************************************
  *                                                                         *
- *   Copyright (C) 2009-2009 by Enrico Ros <enrico.ros@gmail.com>        *
- *   Started on 3 Sep 2009 by root.
+ *   Copyright (C) 2009-2009 by Enrico Ros <enrico.ros@gmail.com>          *
+ *   Started on 3 Sep 2009 by root.                                        *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -14,14 +14,21 @@
 #define NOTESCROLL_H
 
 #include <QtGui/QWidget>
+class MyGraphicsView;
+class MyScene;
 
 class NoteScroll : public QWidget
 {
     Q_OBJECT
+    public:
+        NoteScroll(QWidget *parent = 0);
+        ~NoteScroll();
 
-public:
-    NoteScroll(QWidget *parent = 0);
-    ~NoteScroll();
+        void mouseDoubleClickEvent(QMouseEvent * event);
+
+    private:
+        MyGraphicsView * m_view;
+        MyScene * m_scene;
 };
 
-#endif // NOTESCROLL_H
+#endif
